@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Advanced Crypto Forecast</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			margin: 0;
+			padding: 0;
+			background-color: #f8f9fa;
+		}
+
+		header {
+			background-color: #343a40;
+			color: white;
+			padding: 1rem 2rem;
+			text-align: center;
+		}
+
+		main {
+			padding: 2rem;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-bottom: 2rem;
+		}
+
+		table,
+		th,
+		td {
+			border: 1px solid #dee2e6;
+		}
+
+		th,
+		td {
+			padding: 0.75rem;
+			text-align: left;
+		}
+
+		th {
+			background-color: #343a40;
+			color: white;
+		}
+
+		.chart-container {
+			margin-top: 2rem;
+		}
+
+		canvas {
+			max-width: 100%;
+			height: auto;
+		}
+
+		.loading {
+			text-align: center;
+			margin-top: 2rem;
+			font-size: 1.2rem;
+			color: #6c757d;
+		}
+	</style>
+</head>
+
+<body>
+	<header>
+		<h1>Advanced Crypto Forecast</h1>
+		<p>Analyze and predict top 20 cryptocurrencies using advanced tools</p>
+	</header>
+	<main>
+		<h2>Market Overview</h2>
+		<div class="loading" id="loading">Loading data...</div>
+		<table style="display: none;" id="crypto-table">
+			<thead>
+				<tr>
+					<th>#</th>
+					<th>Name</th>
+					<th>Symbol</th>
+					<th>Price (USD)</th>
+					<th>24h Change (%)</th>
+					<th>Forecast (USD)</th>
+					<th>Sentiment</th>
+				</tr>
+			</thead>
+			<tbody>
+				<!-- Data will be populated dynamically -->
+			</tbody>
+		</table>
+		<div class="chart-container">
+			<canvas id="forecastChart"></canvas>
+		</div>
+	</main>
+	<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script>
+		const apiBaseUrl = 'https://api.coingecko.com/api/v3/';
+		const sentimentApiUrl = 'https://api.alternative.me/fng/';
+		const topCryptos = [
+			{ id: 'bitcoin', name: 'Bitcoin', symbol: 'BTC' },
+			{ id: 'ethereum', name: 'Ethereum', symbol: 'ETH' },
+			{ id: 'tether', name: 'Tether', symbol: 'USDT' },
+			{ id: 'binancecoin', name: 'Binance Coin', symbol: 'BNB' },
+			{ id: 'ripple', name: 'Ripple', symbol: 'XRP' },
+			{ id: 'cardano', name: 'Cardano', symbol: 'ADA' },
+			{ id: 'solana', name: 'Solana', symbol: 'SOL' },
+			{ id: 'dogecoin', name: 'Dogecoin', symbol: 'DOGE' },
+			{ id: 'polkadot', name: 'Polkadot', symbol: 'DOT' },
+			{ id: 'litecoin', name: 'Litecoin', symbol: 'LTC' },
+			{ id: 'tron', name: 'TRON', symbol: 'TRX' },
+			{ id: 'avalanche-2', name: 'Avalanche', symbol: 'AVAX' },
+			{ id: 'matic-network', name: 'Polygon', symbol: 'MATIC' },
+			{ id: 'shiba-inu', name: 'Shiba Inu', symbol: 'SHIB' },
+			{ id: 'chainlink', name: 'Chainlink', symbol: 'LINK' },
+			{ id: 'stellar', name: 'Stellar', symbol: 'XLM' },
+			{ id: 'uniswap', name: 'Uniswap', symbol: 'UNI' },
+			{ id: 'hedera', name: 'Hedera', symbol: 'HBAR' },
+			{ id: 'the-open-network', name: 'Toncoin', symbol: 'TON' },
+			{ id: 'bitcoin-cash', name: 'Bitcoin Cash', symbol: 'BCH' }
+		];
+
+		async function fetchCryptoData(crypto) {
+			const response = await axios.get(`${apiBaseUrl}coins/markets`, {
+				params: {
+					vs_currency: 'usd',
+					ids: crypto.id
+				}
+			});
+			return response.data[0];
+		}
+
+		async function fetchSentiment() {
+			const response = await axios.get(sentimentApiUrl);
+			return response.data.data[0].value_classification;
+		}
+
+		async function loadCryptoData() {
+			const table = document.getElementById('crypto-table');
+			const loading = document.getElementById('loading');
+			const tbody = table.querySelector('tbody');
+			const sentiment = await fetchSentiment();
+
+			let datasets = [];
+			let labels = Array.from({ length: 7 }, (_, i) => `Day ${i + 1}`);
+
+			for (const crypto of topCryptos) {
+				const data = await fetchCryptoData(crypto);
+				const history = await axios.get(`${apiBaseUrl}coins/${crypto.id}/market_chart`, {
+					params: {
+						vs_currency: 'usd',
+						days: 7
+					}
+				});
+
+				const prices = history.data.prices.map(price => price[1]);
+				const forecast = predictPrice(prices);
+
+				tbody.innerHTML += `
+                    <tr>
+                        <td>${topCryptos.indexOf(crypto) + 1}</td>
+                        <td>${crypto.name}</td>
+                        <td>${crypto.symbol}</td>
+                        <td>$${data.current_price.toFixed(2)}</td>
+                        <td>${data.price_change_percentage_24h.toFixed(2)}%</td>
+                        <td>$${forecast.toFixed(2)}</td>
+                        <td>${sentiment}</td>
+                    </tr>
+                `;
+
+				datasets.push({
+					label: crypto.name,
+					data: [...prices, forecast],
+					borderColor: `hsl(${Math.random() * 360}, 70%, 50%)`,
+					fill: false
+				});
+			}
+
+			new Chart(document.getElementById('forecastChart').getContext('2d'), {
+				type: 'line',
+				data: { labels, datasets },
+				options: {
+					responsive: true,
+					plugins: {
+						legend: { position: 'top' },
+						title: { display: true, text: 'Crypto Price Trends and Forecasts' }
+					}
+				}
+			});
+
+			loading.style.display = 'none';
+			table.style.display = 'table';
+		}
+
+		function predictPrice(prices) {
+			const n = prices.length;
+			let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+
+			for (let i = 0; i < n; i++) {
+				sumX += i;
+				sumY += prices[i];
+				sumXY += i * prices[i];
+				sumX2 += i * i;
+			}
+
+			const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+			const intercept = (sumY - slope * sumX) / n;
+
+			return slope * n + intercept;
+		}
+
+		loadCryptoData();
+	</script>
+</body>
+
+</html>
